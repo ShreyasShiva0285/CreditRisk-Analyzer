@@ -3,4 +3,4 @@ pandas
 xgboost
 matplotlib
 Pillow
-shap
+shap==0.41.0
