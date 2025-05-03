@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import pickle
-import base64
 import numpy as np
 
 # --- Streamlit Page Configuration ---
@@ -49,6 +48,12 @@ elif purpose == "Home Improvement":
 else:
     interest_rate = st.slider("Interest Rate", 5.0, 30.0, step=0.5) / 100
 
+# --- Check for valid term before processing ---
+if 'term' not in st.session_state:
+    st.session_state.term = "36 months"  # Default value
+
+term = st.selectbox("Loan Term", ["36 months", "60 months"], index=["36 months", "60 months"].index(st.session_state.term))
+
 # --- Preprocess Input ---
 def preprocess():
     st.write(f"Term selected: {term}")  # Debugging: Check the term value
@@ -79,42 +84,46 @@ def calculate_ratios():
 
 # --- Predict ---
 if st.button("Predict"):
-    data = preprocess()
-    prediction = model.predict(data)[0]
-    proba = model.predict_proba(data)[0][1]
-
-    # Display Customer Info
-    st.subheader(f"🔑 Customer Information")
-    st.markdown(f"**Customer's Name:** {customer_name}")
-    st.markdown(f"**Age:** {customer_age} years")
-
-    # Loan Default Prediction
-    if prediction == 1:
-        st.subheader("Prediction: ❌ Not Good (Likely to Default)")
-        st.markdown(f"**Probability of Default:** {proba:.2%}")
-        st.warning("💡 Suggestion: Improve credit score, reduce loan request, or increase income.")
+    # Check if all input fields are filled
+    if not customer_name or customer_age < 18 or loan_amount <= 0 or income <= 0 or credit_score <= 0:
+        st.error("Please fill in all the fields correctly.")
     else:
-        st.subheader("Prediction: ✅ Good (Low Default Risk)")
-        st.markdown(f"**Probability of Default:** {proba:.2%}")
-        st.success("💡 Suggestion: You have strong loan approval chances!")
+        data = preprocess()
+        prediction = model.predict(data)[0]
+        proba = model.predict_proba(data)[0][1]
 
-    # --- Risk Summary ---
-    st.subheader("📊 Risk Factors Summary")
-    months = 36 if term == "36 months" else 60
-    monthly_rate = interest_rate / 12
-    monthly_payment = (loan_amount * monthly_rate) / (1 - (1 + monthly_rate) ** -months)
-    total_repayment = monthly_payment * months
-    total_interest = total_repayment - loan_amount
+        # Display Customer Info
+        st.subheader(f"🔑 Customer Information")
+        st.markdown(f"**Customer's Name:** {customer_name}")
+        st.markdown(f"**Age:** {customer_age} years")
 
-    # Additional Financial Metrics
-    dti_ratio, ltv_ratio, credit_utilization = calculate_ratios()
+        # Loan Default Prediction
+        if prediction == 1:
+            st.subheader("Prediction: ❌ Not Good (Likely to Default)")
+            st.markdown(f"**Probability of Default:** {proba:.2%}")
+            st.warning("💡 Suggestion: Improve credit score, reduce loan request, or increase income.")
+        else:
+            st.subheader("Prediction: ✅ Good (Low Default Risk)")
+            st.markdown(f"**Probability of Default:** {proba:.2%}")
+            st.success("💡 Suggestion: You have strong loan approval chances!")
 
-    st.markdown(f"**Monthly Payment:** £{monthly_payment:.2f}")
-    st.markdown(f"**Total Repayment Over {months//12} Years:** £{total_repayment:.2f}")
-    st.markdown(f"**Total Interest Paid:** £{total_interest:.2f}")
+        # --- Risk Summary ---
+        st.subheader("📊 Risk Factors Summary")
+        months = 36 if term == "36 months" else 60
+        monthly_rate = interest_rate / 12
+        monthly_payment = (loan_amount * monthly_rate) / (1 - (1 + monthly_rate) ** -months)
+        total_repayment = monthly_payment * months
+        total_interest = total_repayment - loan_amount
 
-    # Display Financial Metrics
-    st.subheader("📊 Additional Financial Metrics")
-    st.markdown(f"**Debt-to-Income Ratio (DTI):** {dti_ratio:.2%}")
-    st.markdown(f"**Loan-to-Value Ratio (LTV):** {ltv_ratio:.2%}")
-    st.markdown(f"**Credit Utilization:** {credit_utilization:.2%}")
+        # Additional Financial Metrics
+        dti_ratio, ltv_ratio, credit_utilization = calculate_ratios()
+
+        st.markdown(f"**Monthly Payment:** £{monthly_payment:.2f}")
+        st.markdown(f"**Total Repayment Over {months//12} Years:** £{total_repayment:.2f}")
+        st.markdown(f"**Total Interest Paid:** £{total_interest:.2f}")
+
+        # Display Financial Metrics
+        st.subheader("📊 Additional Financial Metrics")
+        st.markdown(f"**Debt-to-Income Ratio (DTI):** {dti_ratio:.2%}")
+        st.markdown(f"**Loan-to-Value Ratio (LTV):** {ltv_ratio:.2%}")
+        st.markdown(f"**Credit Utilization:** {credit_utilization:.2%}")
