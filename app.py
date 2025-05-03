@@ -51,6 +51,7 @@ else:
 
 # --- Preprocess Input ---
 def preprocess():
+    st.write(f"Term selected: {term}")  # Debugging: Check the term value
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
     purp = {"Debt Consolidation": 0, "Home Improvement": 1, "Credit Card": 2, "Other": 3}[purpose]
