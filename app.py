@@ -111,20 +111,25 @@ if st.button("Predict"):
     st.bar_chart(imp_df.set_index("Feature"))
 
     # --- ROC Curve (if test data available) ---
-        if X_test is not None and y_test is not None:
+           if X_test is not None and y_test is not None:
         st.subheader("📊 ROC Curve")
 
-        # Preprocess X_test to match the model's expected format
         try:
             X_test_cleaned = X_test.copy()
 
-            # If there are any object columns, encode them as categorical codes
+            # Drop any non-numeric or unsupported columns
             for col in X_test_cleaned.columns:
-                if X_test_cleaned[col].dtype == 'object':
+                if X_test_cleaned[col].dtype == 'object' or X_test_cleaned[col].dtype.name == 'category':
                     X_test_cleaned[col] = X_test_cleaned[col].astype('category').cat.codes
+                elif not pd.api.types.is_numeric_dtype(X_test_cleaned[col]):
+                    X_test_cleaned.drop(columns=[col], inplace=True)
 
-            # Ensure only numeric columns are used
-            X_test_cleaned = X_test_cleaned.select_dtypes(include='number')
+            # Make sure columns match model training features (optional but safer)
+            expected_cols = [
+                "loan_amount", "term", "annual_income", "credit_score",
+                "employment_length", "home_ownership", "purpose"
+            ]
+            X_test_cleaned = X_test_cleaned[[col for col in expected_cols if col in X_test_cleaned.columns]]
 
             y_scores = model.predict_proba(X_test_cleaned)[:, 1]
             fpr, tpr, _ = roc_curve(y_test, y_scores)
@@ -139,4 +144,4 @@ if st.button("Predict"):
             ax.legend(loc="lower right")
             st.pyplot(fig)
         except Exception as e:
-            st.error(f"🚨 Error while plotting ROC curve: {e}")
+            st.error(f"🚨 Error while plotting ROC curve:\n{str(e)}")
