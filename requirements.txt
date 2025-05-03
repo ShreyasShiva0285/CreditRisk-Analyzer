@@ -1,4 +1,5 @@
 streamlit
-xgboost
 pandas
-scikit-learn
+xgboost
+matplotlib
+Pillow  # for the logo
