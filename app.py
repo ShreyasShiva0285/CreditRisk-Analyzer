@@ -2,34 +2,36 @@ import streamlit as st
 import pandas as pd
 import pickle
 import xgboost as xgb
+import matplotlib.pyplot as plt
 from PIL import Image
 import base64
 
-# --- Page Config ---
-st.set_page_config(page_title="Loan Default Predictor", page_icon="📉", layout="centered")
+# --- MUST BE FIRST: Set Streamlit Page Config ---
+st.set_page_config(
+    page_title="Loan Default Predictor",
+    page_icon="📉",
+    layout="centered"
+)
 
-# --- Set Background (optional) ---
+# --- Set Background Image ---
 def set_background(image_path):
-    try:
-        with open(image_path, "rb") as img_file:
-            encoded = base64.b64encode(img_file.read()).decode()
-        css = f"""
-        <style>
-        .stApp {{
-            background-image: url("data:image/jpeg;base64,{encoded}");
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-        }}
-        </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-    except FileNotFoundError:
-        pass
+    with open(image_path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+    css = f"""
+    <style>
+    .stApp {{
+        background-image: url("data:image/jpeg;base64,{encoded}");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
 
-set_background("download.jpeg")
+set_background("download.jpeg")  # Ensure this file is in the same directory
 
-# --- Logo ---
+# --- Optional Logo (top) ---
 try:
     logo = Image.open("logo.png")
     st.image(logo, width=120)
@@ -43,13 +45,29 @@ with open("loan_model.pkl", "rb") as file:
     model = pickle.load(file)
 
 # --- Inputs ---
-loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f")
-term = st.selectbox("Loan Term", ["36 months", "60 months"])
-income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f")
-credit_score = st.slider("Credit Score", 300, 850)
-employment_length = st.slider("Employment Length (years)", 0, 40)
-home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"])
-purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"])
+loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f",
+                              help="Total loan amount requested by the applicant.")
+term = st.selectbox("Loan Term", ["36 months", "60 months"], help="Loan repayment duration.")
+income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f",
+                         help="Applicant's annual income before tax.")
+credit_score = st.slider("Credit Score", 300, 850, help="Higher credit score reduces default risk.")
+employment_length = st.slider("Employment Length (years)", 0, 40, help="Years employed at current job.")
+home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"], help="Applicant's housing status.")
+purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"],
+                       help="Purpose of the loan.")
+
+# Set default interest rates or allow input
+purpose_rates = {
+    "Debt Consolidation": 0.15,
+    "Home Improvement": 0.12,
+    "Credit Card": 0.18,
+    "Other": 0.14
+}
+
+default_rate = purpose_rates.get(purpose, 0.14)
+custom_rate = st.number_input(f"💰 Annual Interest Rate (%) for {purpose}", min_value=0.0, max_value=50.0, value=default_rate * 100, step=0.1,
+                              help="Adjust the interest rate based on loan purpose.")
+annual_interest_rate = custom_rate / 100
 
 # --- Credit Score Status ---
 score_color = "🔴 Poor"
@@ -61,14 +79,18 @@ elif credit_score > 550:
     score_color = "🟠 Low"
 st.markdown(f"**Credit Score Status:** {score_color}")
 
-# --- Preprocessing ---
+# --- Preprocessing Function ---
 def preprocess():
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
     purp = {"Debt Consolidation": 0, "Home Improvement": 1, "Credit Card": 2, "Other": 3}[purpose]
-    return pd.DataFrame([[loan_amount, term_encoded, income, credit_score, employment_length, home, purp]],
-                        columns=["loan_amount", "term", "annual_income", "credit_score",
-                                 "employment_length", "home_ownership", "purpose"])
+    return pd.DataFrame([[
+        loan_amount, term_encoded, income, credit_score,
+        employment_length, home, purp
+    ]], columns=[
+        "loan_amount", "term", "annual_income", "credit_score",
+        "employment_length", "home_ownership", "purpose"
+    ])
 
 # --- Prediction Button ---
 if st.button("Predict"):
@@ -79,35 +101,61 @@ if st.button("Predict"):
     result = "❌ Not Good (Likely to Default)" if prediction == 1 else "✅ Good (Low Default Risk)"
     st.subheader(f"Prediction: {result}")
     st.metric(label="Default Risk Probability", value=f"{proba:.2%}")
-    st.progress(int(proba * 100))
 
     # --- Risk Summary Table ---
-   # --- Risk Summary Table ---
-st.subheader("🔍 Risk Factors Summary")
-risk_table = pd.DataFrame(columns=["Feature", "Value", "Risk Indicator"])
+    st.subheader("🔍 Risk Factors Summary")
+    risk_table = pd.DataFrame(columns=["Feature", "Value", "Risk Indicator"])
 
-# Loan calculations
-months = 36 if term == "36 months" else 60
-annual_interest_rate = 0.12  # Assume 12% annual interest
-monthly_interest_rate = annual_interest_rate / 12
-monthly_payment = loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate) ** months) / ((1 + monthly_interest_rate) ** months - 1) if loan_amount > 0 else 0
-total_repayment = monthly_payment * months
-total_interest = total_repayment - loan_amount
+    # Loan calculations
+    months = 36 if term == "36 months" else 60
+    monthly_interest_rate = annual_interest_rate / 12
+    monthly_payment = loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate) ** months) / ((1 + monthly_interest_rate) ** months - 1) if loan_amount > 0 else 0
+    total_repayment = monthly_payment * months
+    total_interest = total_repayment - loan_amount
 
-def add_risk(feature, value, condition, message):
-    indicator = "⚠️ " + message if condition else "✅ OK"
-    return {"Feature": feature, "Value": value, "Risk Indicator": indicator}
+    def add_risk(feature, value, condition, message):
+        indicator = "⚠️ " + message if condition else "✅ OK"
+        return {"Feature": feature, "Value": value, "Risk Indicator": indicator}
 
-risk_rows = [
-    add_risk("Credit Score", credit_score, credit_score < 600, "Low Credit Score"),
-    add_risk("Annual Income", f"£{income:,.2f}", income < 30000, "Low Income"),
-    add_risk("Loan Amount", f"£{loan_amount:,.2f}", loan_amount > income * 0.5, "High Relative Loan"),
-    add_risk("Employment Length", f"{employment_length} years", employment_length < 2, "Unstable Employment"),
-    add_risk("Loan Term", term, term == "60 months", "Long Term Increases Risk"),
-    {"Feature": "Monthly Repayment", "Value": f"£{monthly_payment:,.2f}", "Risk Indicator": "ℹ️ Calculated"},
-    {"Feature": "Total Repayment", "Value": f"£{total_repayment:,.2f}", "Risk Indicator": "ℹ️ Includes Interest"},
-    {"Feature": "Estimated Interest", "Value": f"£{total_interest:,.2f}", "Risk Indicator": "ℹ️ Over Loan Term"},
-]
+    risk_rows = [
+        add_risk("Credit Score", credit_score, credit_score < 600, "Low Credit Score"),
+        add_risk("Annual Income", f"£{income:,.2f}", income < 30000, "Low Income"),
+        add_risk("Loan Amount", f"£{loan_amount:,.2f}", loan_amount > income * 0.5, "High Relative Loan"),
+        add_risk("Employment Length", f"{employment_length} years", employment_length < 2, "Unstable Employment"),
+        add_risk("Loan Term", term, term == "60 months", "Long Term Increases Risk"),
+        {"Feature": "Monthly Repayment", "Value": f"£{monthly_payment:,.2f}", "Risk Indicator": "ℹ️ Calculated"},
+        {"Feature": "Total Repayment", "Value": f"£{total_repayment:,.2f}", "Risk Indicator": "ℹ️ Includes Interest"},
+        {"Feature": "Estimated Interest", "Value": f"£{total_interest:,.2f}", "Risk Indicator": "ℹ️ Over Loan Term"},
+    ]
 
-risk_table = pd.DataFrame(risk_rows)
-st.dataframe(risk_table, use_container_width=True)
+    risk_table = pd.DataFrame(risk_rows)
+    st.dataframe(risk_table, use_container_width=True)
+
+    # --- Tips and Suggestions ---
+    st.subheader("💡 Tips and Suggestions")
+
+    if credit_score < 600:
+        st.markdown("🔴 **Low Credit Score**: Consider improving your credit score by paying off existing debts, reducing credit utilization, and checking for errors on your credit report.")
+
+    if loan_amount > income * 0.5:
+        st.markdown("⚠️ **High Loan Amount**: A loan amount higher than 50% of your annual income can increase the default risk. Consider reducing the loan amount or increasing your income.")
+    
+    if income < 30000:
+        st.markdown("⚠️ **Low Income**: If your income is below £30,000, your ability to repay may be limited. Consider exploring additional sources of income or adjusting the loan amount.")
+
+    if employment_length < 2:
+        st.markdown("⚠️ **Unstable Employment**: A job tenure of less than 2 years may increase default risk. Stability in employment can improve your loan approval chances.")
+    
+    if term == "60 months":
+        st.markdown("⚠️ **Long Loan Term**: Longer loan terms (60 months) result in higher total repayment and interest. Consider a shorter term if possible.")
+
+    st.markdown("✅ **Good Credit Score**: With a credit score above 650, you are in a good position for loan approval at a favorable rate.")
+
+    # --- Download Results ---
+    data["Prediction"] = "Not Good" if prediction == 1 else "Good"
+    data["Default_Risk_Probability"] = f"{proba:.2%}"
+    csv = data.to_csv(index=False)
+    st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
+
+# --- UI Tip ---
+st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
