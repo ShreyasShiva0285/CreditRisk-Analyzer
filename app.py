@@ -5,10 +5,16 @@ import xgboost as xgb
 import matplotlib.pyplot as plt
 from PIL import Image
 from sklearn.metrics import roc_curve, auc
-import io
-
 import base64
 
+# ✅ This must be first
+st.set_page_config(
+    page_title="Loan Default Predictor",
+    page_icon="📉",
+    layout="centered"
+)
+
+# --- Background Function ---
 def set_background(image_path):
     with open(image_path, "rb") as img_file:
         encoded = base64.b64encode(img_file.read()).decode()
@@ -24,8 +30,10 @@ def set_background(image_path):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# Call the function with your uploaded image path
+# ✅ Call background image AFTER page config
 set_background("download.jpeg")
+
+# Rest of your app continues here...
 
 # --- CONFIGURATION ---
 st.set_page_config(
