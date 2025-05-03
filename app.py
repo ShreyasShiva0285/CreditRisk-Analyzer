@@ -23,7 +23,7 @@ st.markdown("Enter applicant details to predict the likelihood of defaulting on 
 customer_name = st.text_input("Customer's Name", help="Enter the name of the applicant.")
 customer_age = st.number_input("Customer's Age", min_value=18, max_value=120, help="Enter the age of the applicant.")
 loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f")
-term = st.selectbox("Loan Term", ["36 months", "60 months"])
+asset_value = st.number_input("💎 Asset Value (£)", min_value=0.0, format="%.2f", help="Enter the value of the asset (e.g., house value) securing the loan.")
 income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f")
 credit_score = st.slider("Credit Score", 300, 850)
 
@@ -62,6 +62,20 @@ def preprocess():
         "employment_length", "home_ownership", "purpose"
     ])
 
+# --- Calculate Additional Ratios ---
+def calculate_ratios():
+    # Debt-to-Income Ratio (DTI)
+    total_debt_payments = loan_amount * 0.05  # Assume 5% of loan amount is monthly debt repayment (this could be adjusted based on more realistic values)
+    dti_ratio = total_debt_payments / income
+    
+    # Loan-to-Value Ratio (LTV)
+    ltv_ratio = loan_amount / asset_value if asset_value != 0 else 0
+    
+    # Credit Utilization
+    credit_utilization = 0.3  # Placeholder value for now. You can replace it with the actual data if available.
+    
+    return dti_ratio, ltv_ratio, credit_utilization
+
 # --- Predict ---
 if st.button("Predict"):
     data = preprocess()
@@ -91,6 +105,15 @@ if st.button("Predict"):
     total_repayment = monthly_payment * months
     total_interest = total_repayment - loan_amount
 
+    # Additional Financial Metrics
+    dti_ratio, ltv_ratio, credit_utilization = calculate_ratios()
+
     st.markdown(f"**Monthly Payment:** £{monthly_payment:.2f}")
     st.markdown(f"**Total Repayment Over {months//12} Years:** £{total_repayment:.2f}")
     st.markdown(f"**Total Interest Paid:** £{total_interest:.2f}")
+
+    # Display Financial Metrics
+    st.subheader("📊 Additional Financial Metrics")
+    st.markdown(f"**Debt-to-Income Ratio (DTI):** {dti_ratio:.2%}")
+    st.markdown(f"**Loan-to-Value Ratio (LTV):** {ltv_ratio:.2%}")
+    st.markdown(f"**Credit Utilization:** {credit_utilization:.2%}")
