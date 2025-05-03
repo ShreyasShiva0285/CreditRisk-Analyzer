@@ -5,7 +5,6 @@ import xgboost as xgb
 import matplotlib.pyplot as plt
 from PIL import Image
 import base64
-import shap
 
 # --- MUST BE FIRST: Set Streamlit Page Config ---
 st.set_page_config(
@@ -16,22 +15,19 @@ st.set_page_config(
 
 # --- Set Background Image ---
 def set_background(image_path):
-    try:
-        with open(image_path, "rb") as img_file:
-            encoded = base64.b64encode(img_file.read()).decode()
-        css = f"""
-        <style>
-        .stApp {{
-            background-image: url("data:image/jpeg;base64,{encoded}");
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-        }}
-        </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-    except FileNotFoundError:
-        st.warning(f"Background image file '{image_path}' not found.")
+    with open(image_path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+    css = f"""
+    <style>
+    .stApp {{
+        background-image: url("data:image/jpeg;base64,{encoded}");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
 
 set_background("download.jpeg")  # Ensure this file is in the same directory
 
@@ -60,26 +56,34 @@ home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"], hel
 purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"],
                        help="Purpose of the loan.")
 
-# --- Credit Score Status ---
-score_color = "🔴 Poor"
-if credit_score > 750:
-    score_color = "🟢 Excellent"
-elif credit_score > 650:
-    score_color = "🟡 Fair"
-elif credit_score > 550:
-    score_color = "🟠 Low"
-st.markdown(f"**Credit Score Status:** {score_color}")
-
 # --- Preprocessing Function ---
 def preprocess():
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
     purp = {"Debt Consolidation": 0, "Home Improvement": 1, "Credit Card": 2, "Other": 3}[purpose]
-    return pd.DataFrame([[loan_amount, term_encoded, income, credit_score,
-                          employment_length, home, purp]], columns=[
+    return pd.DataFrame([[ 
+        loan_amount, term_encoded, income, credit_score,
+        employment_length, home, purp
+    ]], columns=[
         "loan_amount", "term", "annual_income", "credit_score",
         "employment_length", "home_ownership", "purpose"
     ])
+
+# --- Credit Score Status ---
+def credit_score_status(credit_score):
+    score_color = "🔴 Poor"
+    status_message = "You have a poor credit score, which may significantly impact your ability to get a loan."
+    if credit_score > 750:
+        score_color = "🟢 Excellent"
+        status_message = "Excellent credit score! You're in a great position for getting a loan."
+    elif credit_score > 650:
+        score_color = "🟡 Fair"
+        status_message = "Fair credit score. You're eligible for loans but might face higher interest rates."
+    elif credit_score > 550:
+        score_color = "🟠 Low"
+        status_message = "Low credit score. You might face difficulties getting approved for a loan."
+
+    return score_color, status_message
 
 # --- Prediction Button ---
 if st.button("Predict"):
@@ -91,27 +95,41 @@ if st.button("Predict"):
     st.subheader(f"Prediction: {result}")
     st.metric(label="Default Risk Probability", value=f"{proba:.2%}")
 
+    # --- Credit Score Status Below Credit Score ---
+    score_color, status_message = credit_score_status(credit_score)
+    st.markdown(f"**Credit Score Status:** {score_color}")
+    st.markdown(f"**Status Message:** {status_message}")
+
+    # --- Additional Feedback and Tips ---
+    if prediction == 1:
+        st.warning("**Tip:** Improve your credit score and reduce existing debts to lower the default risk. Consider exploring other financial assistance options, such as debt counseling.")
+    else:
+        st.success("**Tip:** Great! Maintain a healthy credit score and ensure timely repayments to keep your loan eligibility high.")
+
     if credit_score < 600:
         st.info("💡 Tip: A credit score below 600 may significantly increase default risk. Try to improve your credit behavior.")
 
-    # --- Feature Importance using SHAP ---
-    try:
-        st.subheader("📈 Feature Importance (SHAP)")
-        
-        # SHAP explainer
-        explainer = shap.Explainer(model)
-        shap_values = explainer(data)
-        
-        # Plot the SHAP values
-        shap.summary_plot(shap_values, data)
-    except Exception as e:
-        st.error(f"Error displaying SHAP values: {e}")
+    # --- Feature Importance ---
+    st.subheader("📈 Feature Importance")
+    importance = model.feature_importances_
+    features = data.columns
+    imp_df = pd.DataFrame({'Feature': features, 'Importance': importance}).sort_values(by="Importance")
+    st.bar_chart(imp_df.set_index("Feature"))
 
     # --- Download Results ---
     data["Prediction"] = "Not Good" if prediction == 1 else "Good"
     data["Default_Risk_Probability"] = f"{proba:.2%}"
     csv = data.to_csv(index=False)
     st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
+
+# --- File Upload for Test Data (Optional) ---
+uploaded_file = st.file_uploader("Upload CSV with 'target' column", type=["csv"])
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    if "target" in df.columns:
+        X_test = df.drop(columns=["target"])
+        y_test = df["target"]
+        st.success("Test data uploaded. Click 'Predict' to view the results.")
 
 # --- UI Tip ---
 st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
