@@ -1,0 +1,7 @@
+loan_amount,term,annual_income,credit_score,employment_length,home_ownership,purpose,target
+10000,36,50000,700,5,Rent,Debt Consolidation,0
+15000,60,75000,650,3,Own,Home Improvement,0
+20000,36,55000,800,8,Mortgage,Credit Card,0
+25000,60,85000,620,4,Rent,Other,1
+5000,36,30000,550,2,Own,Debt Consolidation,1
+12000,36,60000,720,6,Mortgage,Home Improvement,0
