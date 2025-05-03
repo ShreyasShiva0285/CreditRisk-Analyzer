@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 import pickle
-import base64
-import numpy as np
+import xgboost as xgb
+import matplotlib.pyplot as plt
 
-# --- Streamlit Page Configuration ---
+# --- MUST BE FIRST: Set Streamlit Page Config ---
 st.set_page_config(
     page_title="Loan Default Predictor",
     page_icon="📉",
@@ -15,39 +15,30 @@ st.set_page_config(
 with open("loan_model.pkl", "rb") as file:
     model = pickle.load(file)
 
-# --- App Header ---
-st.title("📉 Loan Default Prediction App")
-st.markdown("Enter applicant details to predict the likelihood of defaulting on a loan.")
+# --- Inputs ---
+customer_name = st.text_input("Customer's Name", help="Enter the name of the applicant.")
+customer_age = st.number_input("Customer's Age", min_value=18, max_value=120, help="Enter the age of the applicant.")
 
-# --- Input Fields ---
-loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f")
-term = st.selectbox("Loan Term", ["36 months", "60 months"])
-income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f")
-credit_score = st.slider("Credit Score", 300, 850)
+loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f", help="Total loan amount requested by the applicant.")
+term = st.selectbox("Loan Term", ["36 months", "60 months"], help="Loan repayment duration.")
+income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f", help="Applicant's annual income before tax.")
+credit_score = st.slider("Credit Score", 300, 850, help="Higher credit score reduces default risk.")
+employment_length = st.slider("Employment Length (years)", 0, 40, help="Years employed at current job.")
+home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"], help="Applicant's housing status.")
+purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"], help="Purpose of the loan.")
+interest_rate = st.selectbox("Interest Rate", [0.05, 0.06, 0.07, 0.08, 0.09], help="Select an interest rate for the loan.")
 
-# --- Show Credit Score Status ---
+# --- Credit Score Status ---
+score_color = "🔴 Poor"
 if credit_score > 750:
-    st.markdown("**Credit Score Status:** 🟢 Excellent")
+    score_color = "🟢 Excellent"
 elif credit_score > 650:
-    st.markdown("**Credit Score Status:** 🟡 Fair")
+    score_color = "🟡 Fair"
 elif credit_score > 550:
-    st.markdown("**Credit Score Status:** 🟠 Low")
-else:
-    st.markdown("**Credit Score Status:** 🔴 Poor")
+    score_color = "🟠 Low"
+st.markdown(f"**Credit Score Status:** {score_color}")
 
-employment_length = st.slider("Employment Length (years)", 0, 40)
-home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"])
-
-purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"])
-interest_rate = 0.1  # Default interest
-if purpose == "Debt Consolidation":
-    interest_rate = st.slider("Interest Rate for Debt Consolidation", 5.0, 25.0, step=0.5) / 100
-elif purpose == "Home Improvement":
-    interest_rate = st.slider("Interest Rate for Home Improvement", 5.0, 20.0, step=0.5) / 100
-else:
-    interest_rate = st.slider("Interest Rate", 5.0, 30.0, step=0.5) / 100
-
-# --- Preprocess Input ---
+# --- Preprocessing Function ---
 def preprocess():
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
@@ -60,44 +51,67 @@ def preprocess():
         "employment_length", "home_ownership", "purpose"
     ])
 
-# --- Predict ---
+# --- Prediction Button ---
 if st.button("Predict"):
     data = preprocess()
     prediction = model.predict(data)[0]
     proba = model.predict_proba(data)[0][1]
 
+    # --- Risk Factors Summary ---
+    months = 36 if term == "36 months" else 60
+    monthly_rate = interest_rate / 12
+    monthly_payment = (loan_amount * monthly_rate) / (1 - (1 + monthly_rate) ** -months)
+    total_repayment = monthly_payment * months
+    total_interest = total_repayment - loan_amount
+
+    # Display Customer Name and Age
+    st.subheader(f"🔑 Customer Information")
+    st.markdown(f"**Customer's Name:** {customer_name}")
+    st.markdown(f"**Age:** {customer_age} years")
+
+# --- Risk Factors Summary ---
+if st.button("Predict"):
+    data = preprocess()
+    prediction = model.predict(data)[0]
+    proba = model.predict_proba(data)[0][1]
+
+    # --- Risk Factors Summary ---
+    months = 36 if term == "36 months" else 60
+    monthly_rate = interest_rate / 12
+    monthly_payment = (loan_amount * monthly_rate) / (1 - (1 + monthly_rate) ** -months)
+    total_repayment = monthly_payment * months
+    total_interest = total_repayment - loan_amount
+
+    # Display Customer Name and Age
+    st.subheader(f"🔑 Customer Information")
+    st.markdown(f"**Customer's Name:** {customer_name}")
+    st.markdown(f"**Age:** {customer_age} years")
+
+    # Risk Summary
+    st.subheader("📊 Risk Factors Summary")
+    
+    # Debt-to-Income Ratio (DTI)
+    monthly_income = income / 12  # Monthly income
+    monthly_debt_payments = 500  # Example debt payments
+    dti = monthly_debt_payments / monthly_income
+    st.markdown(f"**Debt-to-Income Ratio (DTI):** {dti:.2f} ({'Good' if dti < 0.36 else 'High Risk'})")
+
+    # Loan-to-Value Ratio (LTV) (for secured loans)
+    property_value = 300000  # Example for home loans
+    ltv = loan_amount / property_value
+    st.markdown(f"**Loan-to-Value Ratio (LTV):** {ltv:.2f} ({'Good' if ltv < 0.8 else 'High Risk'})")
+
+    # Loan cost details
+    st.markdown(f"**Monthly Payment:** £{monthly_payment:.2f}")
+    st.markdown(f"**Total Repayment Over {months // 12} Years:** £{total_repayment:.2f}")
+    st.markdown(f"**Total Interest Paid:** £{total_interest:.2f}")
+
+    # Loan Decision Result
+    result = "❌ Not Good (Likely to Default)" if prediction == 1 else "✅ Good (Low Default Risk)"
+    st.subheader(f"Prediction: {result}")
+    st.metric(label="Default Risk Probability", value=f"{proba:.2%}")
+
     if prediction == 1:
-        st.subheader("Prediction: ❌ Not Good (Likely to Default)")
-        st.markdown(f"**Probability of Default:** {proba:.2%}")
-        st.warning("💡 Suggestion: Improve credit score, reduce loan request, or increase income.")
+        st.info("💡 The applicant is at higher risk of default. We recommend considering lower loan amounts or securing the loan with an asset.")
     else:
-        st.subheader("Prediction: ✅ Good (Low Default Risk)")
-        st.markdown(f"**Probability of Default:** {proba:.2%}")
-        st.success("💡 Suggestion: You have strong loan approval chances!")
-
-    # --- Risk Summary ---
-   # --- Risk Summary ---
-st.subheader("📊 Risk Factors Summary")
-
-# Loan term and monthly payment
-months = 36 if term == "36 months" else 60
-monthly_rate = interest_rate / 12
-monthly_payment = (loan_amount * monthly_rate) / (1 - (1 + monthly_rate) ** -months)
-total_repayment = monthly_payment * months
-total_interest = total_repayment - loan_amount
-
-# Debt-to-Income Ratio (DTI)
-monthly_income = income / 12  # Monthly income
-monthly_debt_payments = 500  # Example debt payments
-dti = monthly_debt_payments / monthly_income
-st.markdown(f"**Debt-to-Income Ratio (DTI):** {dti:.2f} ({'Good' if dti < 0.36 else 'High Risk'})")
-
-# Loan-to-Value Ratio (LTV) (for secured loans)
-property_value = 300000  # Example for home loans
-ltv = loan_amount / property_value
-st.markdown(f"**Loan-to-Value Ratio (LTV):** {ltv:.2f} ({'Good' if ltv < 0.8 else 'High Risk'})")
-
-# Loan cost details
-st.markdown(f"**Monthly Payment:** £{monthly_payment:.2f}")
-st.markdown(f"**Total Repayment Over {months // 12} Years:** £{total_repayment:.2f}")
-st.markdown(f"**Total Interest Paid:** £{total_interest:.2f}")
+        st.success("✅ The applicant is at a low risk of default. The loan seems manageable given the financial status.")
