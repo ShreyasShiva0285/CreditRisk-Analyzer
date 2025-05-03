@@ -76,13 +76,28 @@ if st.button("Predict"):
         st.success("💡 Suggestion: You have strong loan approval chances!")
 
     # --- Risk Summary ---
-    st.subheader("📊 Risk Factors Summary")
-    months = 36 if term == "36 months" else 60
-    monthly_rate = interest_rate / 12
-    monthly_payment = (loan_amount * monthly_rate) / (1 - (1 + monthly_rate) ** -months)
-    total_repayment = monthly_payment * months
-    total_interest = total_repayment - loan_amount
+   # --- Risk Summary ---
+st.subheader("📊 Risk Factors Summary")
 
-    st.markdown(f"**Monthly Payment:** £{monthly_payment:.2f}")
-    st.markdown(f"**Total Repayment Over {months//12} Years:** £{total_repayment:.2f}")
-    st.markdown(f"**Total Interest Paid:** £{total_interest:.2f}")
+# Loan term and monthly payment
+months = 36 if term == "36 months" else 60
+monthly_rate = interest_rate / 12
+monthly_payment = (loan_amount * monthly_rate) / (1 - (1 + monthly_rate) ** -months)
+total_repayment = monthly_payment * months
+total_interest = total_repayment - loan_amount
+
+# Debt-to-Income Ratio (DTI)
+monthly_income = income / 12  # Monthly income
+monthly_debt_payments = 500  # Example debt payments
+dti = monthly_debt_payments / monthly_income
+st.markdown(f"**Debt-to-Income Ratio (DTI):** {dti:.2f} ({'Good' if dti < 0.36 else 'High Risk'})")
+
+# Loan-to-Value Ratio (LTV) (for secured loans)
+property_value = 300000  # Example for home loans
+ltv = loan_amount / property_value
+st.markdown(f"**Loan-to-Value Ratio (LTV):** {ltv:.2f} ({'Good' if ltv < 0.8 else 'High Risk'})")
+
+# Loan cost details
+st.markdown(f"**Monthly Payment:** £{monthly_payment:.2f}")
+st.markdown(f"**Total Repayment Over {months // 12} Years:** £{total_repayment:.2f}")
+st.markdown(f"**Total Interest Paid:** £{total_interest:.2f}")
