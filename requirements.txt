@@ -3,3 +3,4 @@ pandas
 xgboost
 matplotlib
 Pillow  # for the logo
+pip install shap
