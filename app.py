@@ -7,14 +7,14 @@ from PIL import Image
 from sklearn.metrics import roc_curve, auc
 import base64
 
-# ✅ This must be first
+# --- MUST BE FIRST: Set Streamlit Page Config ---
 st.set_page_config(
     page_title="Loan Default Predictor",
     page_icon="📉",
     layout="centered"
 )
 
-# --- Background Function ---
+# --- Set Background Image ---
 def set_background(image_path):
     with open(image_path, "rb") as img_file:
         encoded = base64.b64encode(img_file.read()).decode()
@@ -30,32 +30,22 @@ def set_background(image_path):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# ✅ Call background image AFTER page config
-set_background("download.jpeg")
+set_background("download.jpeg")  # Ensure this file is in the same directory
 
-# Rest of your app continues here...
-
-# --- CONFIGURATION ---
-st.set_page_config(
-    page_title="Loan Default Predictor",
-    page_icon="📉",
-    layout="centered"
-)
-
-# --- LOGO ---
+# --- Optional Logo (top) ---
 try:
-    logo = Image.open("logo.png")  # Replace with your actual logo path
+    logo = Image.open("logo.png")
     st.image(logo, width=120)
 except:
     st.markdown("## 📉 Loan Default Prediction App")
 
 st.markdown("Enter applicant info to predict loan default risk.")
 
-# --- MODEL LOADING ---
+# --- Load Model ---
 with open("loan_model.pkl", "rb") as file:
     model = pickle.load(file)
 
-# --- INPUT FIELDS ---
+# --- Inputs ---
 loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f",
                               help="Total loan amount requested by the applicant.")
 term = st.selectbox("Loan Term", ["36 months", "60 months"], help="Loan repayment duration.")
@@ -67,7 +57,7 @@ home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"], hel
 purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"],
                        help="Purpose of the loan.")
 
-# --- CREDIT SCORE COLOR ---
+# --- Credit Score Status ---
 score_color = "🔴 Poor"
 if credit_score > 750:
     score_color = "🟢 Excellent"
@@ -75,9 +65,9 @@ elif credit_score > 650:
     score_color = "🟡 Fair"
 elif credit_score > 550:
     score_color = "🟠 Low"
-st.markdown(f"Credit Score Status: **{score_color}**")
+st.markdown(f"**Credit Score Status:** {score_color}")
 
-# --- PREPROCESSING FUNCTION ---
+# --- Preprocessing Function ---
 def preprocess():
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
@@ -90,17 +80,17 @@ def preprocess():
         "employment_length", "home_ownership", "purpose"
     ])
 
-# --- OPTIONAL: LOAD SAMPLE TEST DATA FOR ROC ---
+# --- Load Sample Test Data (Optional ROC Support) ---
 X_test, y_test = None, None
 try:
-    test_data = pd.read_csv("sample_test_data.csv")  # Must include 'target' column
+    test_data = pd.read_csv("sample_test_data.csv")  # Optional
     if "target" in test_data.columns:
         X_test = test_data.drop(columns=["target"])
         y_test = test_data["target"]
 except:
     pass
 
-# --- PREDICTION BUTTON ---
+# --- Prediction Button ---
 if st.button("Predict"):
     data = preprocess()
     prediction = model.predict(data)[0]
@@ -110,18 +100,17 @@ if st.button("Predict"):
     st.subheader(f"Prediction: {result}")
     st.metric(label="Default Risk Probability", value=f"{proba:.2%}")
 
-    # --- TIP ---
     if credit_score < 600:
         st.info("💡 Tip: A credit score below 600 may significantly increase default risk. Try to improve your credit behavior.")
 
-    # --- FEATURE IMPORTANCE ---
+    # --- Feature Importance ---
     st.subheader("📈 Feature Importance")
     importance = model.feature_importances_
     features = data.columns
     imp_df = pd.DataFrame({'Feature': features, 'Importance': importance}).sort_values(by="Importance")
     st.bar_chart(imp_df.set_index("Feature"))
 
-    # --- ROC CURVE ---
+    # --- ROC Curve (if test data available) ---
     if X_test is not None and y_test is not None:
         st.subheader("📊 ROC Curve")
         y_scores = model.predict_proba(X_test)[:, 1]
@@ -136,17 +125,16 @@ if st.button("Predict"):
         ax.set_title("Receiver Operating Characteristic")
         ax.legend(loc="lower right")
         st.pyplot(fig)
-
     else:
         st.warning("📄 ROC curve not shown. Add 'sample_test_data.csv' with a 'target' column.")
 
-    # --- DOWNLOAD ---
+    # --- Download Results ---
     data["Prediction"] = "Not Good" if prediction == 1 else "Good"
     data["Default_Risk_Probability"] = f"{proba:.2%}"
     csv = data.to_csv(index=False)
     st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
 
-# --- FILE UPLOAD FOR ROC (OPTIONAL) ---
+# --- File Upload for ROC Curve ---
 uploaded_file = st.file_uploader("Upload CSV with 'target' column to plot ROC", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -155,5 +143,5 @@ if uploaded_file:
         y_test = df["target"]
         st.success("ROC data uploaded. Click Predict to view.")
 
-# --- UI TIP ---
+# --- UI Tip ---
 st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
