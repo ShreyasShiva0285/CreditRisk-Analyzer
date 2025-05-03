@@ -1,14 +1,41 @@
 import streamlit as st
 import pandas as pd
 import pickle
-import shap
+import xgboost as xgb
 import matplotlib.pyplot as plt
 from PIL import Image
+import base64
+import shap
 
-# --- Set Page Config ---
-st.set_page_config(page_title="Loan Default Predictor", page_icon="📉", layout="centered")
+# --- MUST BE FIRST: Set Streamlit Page Config ---
+st.set_page_config(
+    page_title="Loan Default Predictor",
+    page_icon="📉",
+    layout="centered"
+)
 
-# --- Optional Logo ---
+# --- Set Background Image ---
+def set_background(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            encoded = base64.b64encode(img_file.read()).decode()
+        css = f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/jpeg;base64,{encoded}");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        </style>
+        """
+        st.markdown(css, unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.warning(f"Background image file '{image_path}' not found.")
+
+set_background("download.jpeg")  # Ensure this file is in the same directory
+
+# --- Optional Logo (top) ---
 try:
     logo = Image.open("logo.png")
     st.image(logo, width=120)
@@ -21,22 +48,19 @@ st.markdown("Enter applicant info to predict loan default risk.")
 with open("loan_model.pkl", "rb") as file:
     model = pickle.load(file)
 
-# --- Check if Model Supports `predict_proba()` ---
-if hasattr(model, 'predict_proba'):
-    st.success("✅ The model supports `predict_proba()` for predicting probabilities.")
-else:
-    st.error("❌ Model does not support `predict_proba()`. Ensure you're using a classifier like XGBoost or RandomForest.")
+# --- Inputs ---
+loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f",
+                              help="Total loan amount requested by the applicant.")
+term = st.selectbox("Loan Term", ["36 months", "60 months"], help="Loan repayment duration.")
+income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f",
+                         help="Applicant's annual income before tax.")
+credit_score = st.slider("Credit Score", 300, 850, help="Higher credit score reduces default risk.")
+employment_length = st.slider("Employment Length (years)", 0, 40, help="Years employed at current job.")
+home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"], help="Applicant's housing status.")
+purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"],
+                       help="Purpose of the loan.")
 
-# --- Input Fields ---
-loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f")
-term = st.selectbox("Loan Term", ["36 months", "60 months"])
-income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f")
-credit_score = st.slider("Credit Score", 300, 850)
-employment_length = st.slider("Employment Length (years)", 0, 40)
-home_ownership = st.selectbox("Home Ownership", ["Rent", "Own", "Mortgage"])
-purpose = st.selectbox("Purpose", ["Debt Consolidation", "Home Improvement", "Credit Card", "Other"])
-
-# --- Credit Score Indicator ---
+# --- Credit Score Status ---
 score_color = "🔴 Poor"
 if credit_score > 750:
     score_color = "🟢 Excellent"
@@ -46,20 +70,18 @@ elif credit_score > 550:
     score_color = "🟠 Low"
 st.markdown(f"**Credit Score Status:** {score_color}")
 
-# --- Preprocess Inputs ---
+# --- Preprocessing Function ---
 def preprocess():
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
     purp = {"Debt Consolidation": 0, "Home Improvement": 1, "Credit Card": 2, "Other": 3}[purpose]
-    return pd.DataFrame([[
-        loan_amount, term_encoded, income, credit_score,
-        employment_length, home, purp
-    ]], columns=[
+    return pd.DataFrame([[loan_amount, term_encoded, income, credit_score,
+                          employment_length, home, purp]], columns=[
         "loan_amount", "term", "annual_income", "credit_score",
         "employment_length", "home_ownership", "purpose"
     ])
 
-# --- Predict Button ---
+# --- Prediction Button ---
 if st.button("Predict"):
     data = preprocess()
     prediction = model.predict(data)[0]
@@ -72,19 +94,24 @@ if st.button("Predict"):
     if credit_score < 600:
         st.info("💡 Tip: A credit score below 600 may significantly increase default risk. Try to improve your credit behavior.")
 
-    # --- SHAP Feature Importance ---
-   # --- SHAP Feature Importance ---
-st.subheader("📊 SHAP Feature Importance")
-try:
-    # Generate SHAP explainer object
-    explainer = shap.Explainer(model)
-    
-    # Compute SHAP values
-    shap_values = explainer(data)
-    
-    # Plot the SHAP values using SHAP's built-in plotting method
-    shap.summary_plot(shap_values, data)
-    
-    # SHAP automatically displays the plot, no need for st.pyplot()
-except Exception as e:
-    st.warning(f"⚠️ SHAP plot could not be generated. Reason: {e}")
+    # --- Feature Importance using SHAP ---
+    try:
+        st.subheader("📈 Feature Importance (SHAP)")
+        
+        # SHAP explainer
+        explainer = shap.Explainer(model)
+        shap_values = explainer(data)
+        
+        # Plot the SHAP values
+        shap.summary_plot(shap_values, data)
+    except Exception as e:
+        st.error(f"Error displaying SHAP values: {e}")
+
+    # --- Download Results ---
+    data["Prediction"] = "Not Good" if prediction == 1 else "Good"
+    data["Default_Risk_Probability"] = f"{proba:.2%}"
+    csv = data.to_csv(index=False)
+    st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
+
+# --- UI Tip ---
+st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
