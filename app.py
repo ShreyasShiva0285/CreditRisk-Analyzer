@@ -4,10 +4,9 @@ import pickle
 import xgboost as xgb
 import matplotlib.pyplot as plt
 from PIL import Image
-from sklearn.metrics import roc_curve, auc
 import base64
 
-# --- MUST BE FIRST: Set Streamlit Page Config ---
+# --- Set Streamlit Page Config ---
 st.set_page_config(
     page_title="Loan Default Predictor",
     page_icon="📉",
@@ -30,9 +29,9 @@ def set_background(image_path):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-set_background("Cal.jpeg")  # Ensure this file is in the same directory
+set_background("download.jpeg")  # Ensure this file is in the same directory
 
-# --- Optional Logo (top) ---
+# --- Optional Logo ---
 try:
     logo = Image.open("logo.png")
     st.image(logo, width=120)
@@ -72,23 +71,10 @@ def preprocess():
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
     purp = {"Debt Consolidation": 0, "Home Improvement": 1, "Credit Card": 2, "Other": 3}[purpose]
-    return pd.DataFrame([[
-        loan_amount, term_encoded, income, credit_score,
-        employment_length, home, purp
-    ]], columns=[
-        "loan_amount", "term", "annual_income", "credit_score",
-        "employment_length", "home_ownership", "purpose"
-    ])
-
-# --- Load Sample Test Data (Optional ROC Support) ---
-X_test, y_test = None, None
-try:
-    test_data = pd.read_csv("sample_test_data.csv")  # Optional
-    if "target" in test_data.columns:
-        X_test = test_data.drop(columns=["target"])
-        y_test = test_data["target"]
-except:
-    pass
+    return pd.DataFrame([[loan_amount, term_encoded, income, credit_score,
+                          employment_length, home, purp]],
+                        columns=["loan_amount", "term", "annual_income", "credit_score",
+                                 "employment_length", "home_ownership", "purpose"])
 
 # --- Prediction Button ---
 if st.button("Predict"):
@@ -110,38 +96,11 @@ if st.button("Predict"):
     imp_df = pd.DataFrame({'Feature': features, 'Importance': importance}).sort_values(by="Importance")
     st.bar_chart(imp_df.set_index("Feature"))
 
-    # --- ROC Curve (if test data available) ---
-           if X_test is not None and y_test is not None:
-        st.subheader("📊 ROC Curve")
+    # --- Download Results ---
+    data["Prediction"] = "Not Good" if prediction == 1 else "Good"
+    data["Default_Risk_Probability"] = f"{proba:.2%}"
+    csv = data.to_csv(index=False)
+    st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
 
-        try:
-            X_test_cleaned = X_test.copy()
-
-            # Drop any non-numeric or unsupported columns
-            for col in X_test_cleaned.columns:
-                if X_test_cleaned[col].dtype == 'object' or X_test_cleaned[col].dtype.name == 'category':
-                    X_test_cleaned[col] = X_test_cleaned[col].astype('category').cat.codes
-                elif not pd.api.types.is_numeric_dtype(X_test_cleaned[col]):
-                    X_test_cleaned.drop(columns=[col], inplace=True)
-
-            # Make sure columns match model training features (optional but safer)
-            expected_cols = [
-                "loan_amount", "term", "annual_income", "credit_score",
-                "employment_length", "home_ownership", "purpose"
-            ]
-            X_test_cleaned = X_test_cleaned[[col for col in expected_cols if col in X_test_cleaned.columns]]
-
-            y_scores = model.predict_proba(X_test_cleaned)[:, 1]
-            fpr, tpr, _ = roc_curve(y_test, y_scores)
-            roc_auc = auc(fpr, tpr)
-
-            fig, ax = plt.subplots()
-            ax.plot(fpr, tpr, color='blue', label=f"AUC = {roc_auc:.2f}")
-            ax.plot([0, 1], [0, 1], linestyle='--', color='gray')
-            ax.set_xlabel("False Positive Rate")
-            ax.set_ylabel("True Positive Rate")
-            ax.set_title("Receiver Operating Characteristic")
-            ax.legend(loc="lower right")
-            st.pyplot(fig)
-        except Exception as e:
-            st.error(f"🚨 Error while plotting ROC curve:\n{str(e)}")
+# --- UI Tip ---
+st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
