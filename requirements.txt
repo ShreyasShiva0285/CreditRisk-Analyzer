@@ -1,7 +1,5 @@
-streamlit
-pandas
-xgboost
-matplotlib
-Pillow
-shap>=0.41.0
+shap==0.41.0
 numpy==1.21.0
+xgboost
+pandas
+streamlit
