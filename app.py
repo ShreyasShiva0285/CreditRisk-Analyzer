@@ -73,20 +73,18 @@ if st.button("Predict"):
         st.info("💡 Tip: A credit score below 600 may significantly increase default risk. Try to improve your credit behavior.")
 
     # --- SHAP Feature Importance ---
-    st.subheader("📊 SHAP Feature Importance")
-    try:
-        explainer = shap.Explainer(model)
-        shap_values = explainer(data)
-        fig = shap.plots.beeswarm(shap_values, show=False)
-        st.pyplot(fig)
-    except Exception as e:
-        st.warning(f"⚠️ SHAP plot could not be generated. Reason: {e}")
-
-    # --- Downloadable Result ---
-    data["Prediction"] = "Not Good" if prediction == 1 else "Good"
-    data["Default_Risk_Probability"] = f"{proba:.2%}"
-    csv = data.to_csv(index=False)
-    st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
-
-# --- UI Tip ---
-st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
+   # --- SHAP Feature Importance ---
+st.subheader("📊 SHAP Feature Importance")
+try:
+    # Generate SHAP explainer object
+    explainer = shap.Explainer(model)
+    
+    # Compute SHAP values
+    shap_values = explainer(data)
+    
+    # Plot the SHAP values using SHAP's built-in plotting method
+    shap.summary_plot(shap_values, data)
+    
+    # SHAP automatically displays the plot, no need for st.pyplot()
+except Exception as e:
+    st.warning(f"⚠️ SHAP plot could not be generated. Reason: {e}")
