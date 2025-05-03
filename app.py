@@ -30,7 +30,7 @@ def set_background(image_path):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-set_background("download.jpeg")  # Ensure this file is in the same directory
+set_background("Cal.jpeg")  # Ensure this file is in the same directory
 
 # --- Optional Logo (top) ---
 try:
