@@ -20,6 +20,8 @@ st.title("📉 Loan Default Prediction App")
 st.markdown("Enter applicant details to predict the likelihood of defaulting on a loan.")
 
 # --- Input Fields ---
+customer_name = st.text_input("Customer's Name", help="Enter the name of the applicant.")
+customer_age = st.number_input("Customer's Age", min_value=18, max_value=120, help="Enter the age of the applicant.")
 loan_amount = st.number_input("💷 Loan Amount (£)", min_value=0.0, format="%.2f")
 term = st.selectbox("Loan Term", ["36 months", "60 months"])
 income = st.number_input("💷 Annual Income (£)", min_value=0.0, format="%.2f")
@@ -52,7 +54,7 @@ def preprocess():
     term_encoded = 0 if term == "36 months" else 1
     home = {"Rent": 0, "Own": 1, "Mortgage": 2}[home_ownership]
     purp = {"Debt Consolidation": 0, "Home Improvement": 1, "Credit Card": 2, "Other": 3}[purpose]
-    return pd.DataFrame([[
+    return pd.DataFrame([[ 
         loan_amount, term_encoded, income, credit_score,
         employment_length, home, purp
     ]], columns=[
@@ -66,6 +68,12 @@ if st.button("Predict"):
     prediction = model.predict(data)[0]
     proba = model.predict_proba(data)[0][1]
 
+    # Display Customer Info
+    st.subheader(f"🔑 Customer Information")
+    st.markdown(f"**Customer's Name:** {customer_name}")
+    st.markdown(f"**Age:** {customer_age} years")
+
+    # Loan Default Prediction
     if prediction == 1:
         st.subheader("Prediction: ❌ Not Good (Likely to Default)")
         st.markdown(f"**Probability of Default:** {proba:.2%}")
