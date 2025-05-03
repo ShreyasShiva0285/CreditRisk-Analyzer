@@ -111,37 +111,32 @@ if st.button("Predict"):
     st.bar_chart(imp_df.set_index("Feature"))
 
     # --- ROC Curve (if test data available) ---
-    if X_test is not None and y_test is not None:
+        if X_test is not None and y_test is not None:
         st.subheader("📊 ROC Curve")
-        y_scores = model.predict_proba(X_test)[:, 1]
-        fpr, tpr, _ = roc_curve(y_test, y_scores)
-        roc_auc = auc(fpr, tpr)
 
-        fig, ax = plt.subplots()
-        ax.plot(fpr, tpr, color='blue', label=f"AUC = {roc_auc:.2f}")
-        ax.plot([0, 1], [0, 1], linestyle='--', color='gray')
-        ax.set_xlabel("False Positive Rate")
-        ax.set_ylabel("True Positive Rate")
-        ax.set_title("Receiver Operating Characteristic")
-        ax.legend(loc="lower right")
-        st.pyplot(fig)
-    else:
-        st.warning("📄 ROC curve not shown. Add 'sample_test_data.csv' with a 'target' column.")
+        # Preprocess X_test to match the model's expected format
+        try:
+            X_test_cleaned = X_test.copy()
 
-    # --- Download Results ---
-    data["Prediction"] = "Not Good" if prediction == 1 else "Good"
-    data["Default_Risk_Probability"] = f"{proba:.2%}"
-    csv = data.to_csv(index=False)
-    st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
+            # If there are any object columns, encode them as categorical codes
+            for col in X_test_cleaned.columns:
+                if X_test_cleaned[col].dtype == 'object':
+                    X_test_cleaned[col] = X_test_cleaned[col].astype('category').cat.codes
 
-# --- File Upload for ROC Curve ---
-uploaded_file = st.file_uploader("Upload CSV with 'target' column to plot ROC", type=["csv"])
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    if "target" in df.columns:
-        X_test = df.drop(columns=["target"])
-        y_test = df["target"]
-        st.success("ROC data uploaded. Click Predict to view.")
+            # Ensure only numeric columns are used
+            X_test_cleaned = X_test_cleaned.select_dtypes(include='number')
 
-# --- UI Tip ---
-st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
+            y_scores = model.predict_proba(X_test_cleaned)[:, 1]
+            fpr, tpr, _ = roc_curve(y_test, y_scores)
+            roc_auc = auc(fpr, tpr)
+
+            fig, ax = plt.subplots()
+            ax.plot(fpr, tpr, color='blue', label=f"AUC = {roc_auc:.2f}")
+            ax.plot([0, 1], [0, 1], linestyle='--', color='gray')
+            ax.set_xlabel("False Positive Rate")
+            ax.set_ylabel("True Positive Rate")
+            ax.set_title("Receiver Operating Characteristic")
+            ax.legend(loc="lower right")
+            st.pyplot(fig)
+        except Exception as e:
+            st.error(f"🚨 Error while plotting ROC curve: {e}")
