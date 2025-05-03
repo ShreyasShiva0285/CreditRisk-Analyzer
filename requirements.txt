@@ -1,7 +1,6 @@
-streamlit
-pandas
-xgboost
-matplotlib
-Pillow
-scikit-learn
-base64
+streamlit==1.20.0
+pandas==1.5.3
+xgboost==1.7.5
+matplotlib==3.6.3
+Pillow==9.3.0
+scikit-learn==1.2.2
