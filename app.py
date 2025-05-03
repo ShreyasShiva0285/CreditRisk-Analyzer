@@ -103,59 +103,32 @@ if st.button("Predict"):
     st.metric(label="Default Risk Probability", value=f"{proba:.2%}")
 
     # --- Risk Summary Table ---
-    st.subheader("🔍 Risk Factors Summary")
-    risk_table = pd.DataFrame(columns=["Feature", "Value", "Risk Indicator"])
+   # --- Risk Summary Table ---
+st.subheader("🔍 Risk Factors Summary")
+risk_table = pd.DataFrame(columns=["Feature", "Value", "Risk Indicator"])
 
-    # Loan calculations
-    months = 36 if term == "36 months" else 60
-    monthly_interest_rate = annual_interest_rate / 12
-    monthly_payment = loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate) ** months) / ((1 + monthly_interest_rate) ** months - 1) if loan_amount > 0 else 0
-    total_repayment = monthly_payment * months
-    total_interest = total_repayment - loan_amount
+# Loan calculations
+months = 36 if term == "36 months" else 60
+annual_interest_rate = 0.12  # Assume 12% annual interest
+monthly_interest_rate = annual_interest_rate / 12
+monthly_payment = loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate) ** months) / ((1 + monthly_interest_rate) ** months - 1) if loan_amount > 0 else 0
+total_repayment = monthly_payment * months
+total_interest = total_repayment - loan_amount
 
-    def add_risk(feature, value, condition, message):
-        indicator = "⚠️ " + message if condition else "✅ OK"
-        return {"Feature": feature, "Value": value, "Risk Indicator": indicator}
+def add_risk(feature, value, condition, message):
+    indicator = "⚠️ " + message if condition else "✅ OK"
+    return {"Feature": feature, "Value": value, "Risk Indicator": indicator}
 
-    risk_rows = [
-        add_risk("Credit Score", credit_score, credit_score < 600, "Low Credit Score"),
-        add_risk("Annual Income", f"£{income:,.2f}", income < 30000, "Low Income"),
-        add_risk("Loan Amount", f"£{loan_amount:,.2f}", loan_amount > income * 0.5, "High Relative Loan"),
-        add_risk("Employment Length", f"{employment_length} years", employment_length < 2, "Unstable Employment"),
-        add_risk("Loan Term", term, term == "60 months", "Long Term Increases Risk"),
-        {"Feature": "Monthly Repayment", "Value": f"£{monthly_payment:,.2f}", "Risk Indicator": "ℹ️ Calculated"},
-        {"Feature": "Total Repayment", "Value": f"£{total_repayment:,.2f}", "Risk Indicator": "ℹ️ Includes Interest"},
-        {"Feature": "Estimated Interest", "Value": f"£{total_interest:,.2f}", "Risk Indicator": "ℹ️ Over Loan Term"},
-    ]
+risk_rows = [
+    add_risk("Credit Score", credit_score, credit_score < 600, "Low Credit Score"),
+    add_risk("Annual Income", f"£{income:,.2f}", income < 30000, "Low Income"),
+    add_risk("Loan Amount", f"£{loan_amount:,.2f}", loan_amount > income * 0.5, "High Relative Loan"),
+    add_risk("Employment Length", f"{employment_length} years", employment_length < 2, "Unstable Employment"),
+    add_risk("Loan Term", term, term == "60 months", "Long Term Increases Risk"),
+    {"Feature": "Monthly Repayment", "Value": f"£{monthly_payment:,.2f}", "Risk Indicator": "ℹ️ Calculated"},
+    {"Feature": "Total Repayment", "Value": f"£{total_repayment:,.2f}", "Risk Indicator": "ℹ️ Includes Interest"},
+    {"Feature": "Estimated Interest", "Value": f"£{total_interest:,.2f}", "Risk Indicator": "ℹ️ Over Loan Term"},
+]
 
-    risk_table = pd.DataFrame(risk_rows)
-    st.dataframe(risk_table, use_container_width=True)
-
-    # --- Tips and Suggestions ---
-    st.subheader("💡 Tips and Suggestions")
-
-    if credit_score < 600:
-        st.markdown("🔴 **Low Credit Score**: Consider improving your credit score by paying off existing debts, reducing credit utilization, and checking for errors on your credit report.")
-
-    if loan_amount > income * 0.5:
-        st.markdown("⚠️ **High Loan Amount**: A loan amount higher than 50% of your annual income can increase the default risk. Consider reducing the loan amount or increasing your income.")
-    
-    if income < 30000:
-        st.markdown("⚠️ **Low Income**: If your income is below £30,000, your ability to repay may be limited. Consider exploring additional sources of income or adjusting the loan amount.")
-
-    if employment_length < 2:
-        st.markdown("⚠️ **Unstable Employment**: A job tenure of less than 2 years may increase default risk. Stability in employment can improve your loan approval chances.")
-    
-    if term == "60 months":
-        st.markdown("⚠️ **Long Loan Term**: Longer loan terms (60 months) result in higher total repayment and interest. Consider a shorter term if possible.")
-
-    st.markdown("✅ **Good Credit Score**: With a credit score above 650, you are in a good position for loan approval at a favorable rate.")
-
-    # --- Download Results ---
-    data["Prediction"] = "Not Good" if prediction == 1 else "Good"
-    data["Default_Risk_Probability"] = f"{proba:.2%}"
-    csv = data.to_csv(index=False)
-    st.download_button("📥 Download Prediction Result", csv, file_name="loan_prediction.csv", mime="text/csv")
-
-# --- UI Tip ---
-st.markdown("🌗 Tip: Use the gear icon (⚙️) to toggle between Light and Dark mode in Streamlit.")
+risk_table = pd.DataFrame(risk_rows)
+st.dataframe(risk_table, use_container_width=True)
