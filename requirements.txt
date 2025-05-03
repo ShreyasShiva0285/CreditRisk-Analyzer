@@ -1,8 +1,7 @@
 streamlit==1.15.0
 pandas==1.5.3
-xgboost==1.7.5
-matplotlib==3.5.1
+xgboost==1.6.1
+matplotlib==3.4.3
 Pillow==9.2.0
 scikit-learn==1.0.2
 numpy==1.21.5
-base64==1.0
